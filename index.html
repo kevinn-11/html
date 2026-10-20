@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="ca">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simulador Llei D'Hondt - València</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body { background-color: #f8f9fa; padding-top: 2rem; }
+        .card { box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1 class="text-center mb-4">Simulador Llei D'Hondt: Província de València</h1>
+        
+        <div class="row mb-4">
+            <div class="col-md-6 offset-md-3">
+                <div class="card p-3">
+                    <label for="totalEscons" class="form-label fw-bold">Nombre de Diputats a repartir:</label>
+                    <input type="number" id="totalEscons" class="form-control" value="16" min="1" oninput="calcular()">
+                </div>
+            </div>
+        </div>
+
+        <div class="card p-4 mb-4">
+            <h3>Partits i Vots</h3>
+            <p class="text-muted">Modifica els noms o els vots. Pots afegir o eliminar files.</p>
+            <div class="table-responsive">
+                <table class="table table-bordered align-middle" id="taulaPartits">
+                    <thead class="table-dark">
+                        <tr>
+                            <th>Partit Polític</th>
+                            <th>Vots</th>
+                            <th>Accions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><input type="text" class="form-control nom-partit" value="PP" oninput="calcular()"></td>
+                            <td><input type="number" class="form-control vots-partit" value="483469" oninput="calcular()"></td>
+                            <td><button class="btn btn-danger btn-sm" onclick="eliminarFila(this)">Eliminar</button></td>
+                        </tr>
+                        <tr>
+                            <td><input type="text" class="form-control nom-partit" value="PSOE" oninput="calcular()"></td>
+                            <td><input type="number" class="form-control vots-partit" value="461353" oninput="calcular()"></td>
+                            <td><button class="btn btn-danger btn-sm" onclick="eliminarFila(this)">Eliminar</button></td>
+                        </tr>
+                        <tr>
+                            <td><input type="text" class="form-control nom-partit" value="Compromís-Sumar" oninput="calcular()"></td>
+                            <td><input type="number" class="form-control vots-partit" value="242839" oninput="calcular()"></td>
+                            <td><button class="btn btn-danger btn-sm" onclick="eliminarFila(this)">Eliminar</button></td>
+                        </tr>
+                        <tr>
+                            <td><input type="text" class="form-control nom-partit" value="VOX" oninput="calcular()"></td>
+                            <td><input type="number" class="form-control vots-partit" value="218657" oninput="calcular()"></td>
+                            <td><button class="btn btn-danger btn-sm" onclick="eliminarFila(this)">Eliminar</button></td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            <button class="btn btn-success mt-2" onclick="afegirFila()">Afegir Partit</button>
+        </div>
+
+        <div class="card p-4">
+            <h3>Resultats de l'Assignació d'Escanyos</h3>
+            <div id="resultatsContainer"></div>
+        </div>
+    </div>
+
+    <script>
+        function afegirFila() {
+            const tbody = document.querySelector("#taulaPartits tbody");
+            const tr = document.createElement("tr");
+            tr.innerHTML = `
+                <td><input type="text" class="form-control nom-partit" value="Nou Partit" oninput="calcular()"></td>
+                <td><input type="number" class="form-control vots-partit" value="0" oninput="calcular()"></td>
+                <td><button class="btn btn-danger btn-sm" onclick="eliminarFila(this)">Eliminar</button></td>
+            `;
+            tbody.appendChild(tr);
+            calcular();
+        }
+
+        function eliminarFila(btn) {
+            btn.closest("tr").remove();
+            calcular();
+        }
+
+        function calcular() {
+            const esconsTotal = parseInt(document.getElementById("totalEscons").value) || 0;
+            const files = document.querySelectorAll("#taulaPartits tbody tr");
+            
+            let partits = [];
+            let totalVotsValids = 0;
+
+            files.forEach(fila => {
+                let nom = fila.querySelector(".nom-partit").value;
+                let vots = parseInt(fila.querySelector(".vots-partit").value) || 0;
+                totalVotsValids += vots;
+                partits.push({ nom, vots, escons: 0 });
+            });
+
+            // Barrera electoral del 3%
+            let barrera = totalVotsValids * 0.03;
+            let partitsfiltrats = partits.filter(p => p.vots >= barrera);
+
+            // Matriu de cocients D'Hondt
+            let matriuCocients = [];
+            partitsfiltrats.forEach((p, indexOriginal) => {
+                for (let i = 1; i <= esconsTotal; i++) {
+                    matriuCocients.push({
+                        partit: p.nom,
+                        cocient: p.vots / i,
+                        divisora: i
+                    });
+                }
+            });
+
+            // Ordenar de major a menor cocient
+            matriuCocients.sort((a, b) => b.cocient - a.cocient);
+
+            // Assignar escons
+            let esconsAssignats = matriuCocients.slice(0, esconsTotal);
+            let recompteEscons = {};
+            partitsfiltrats.forEach(p => recompteEscons[p.nom] = 0);
+            
+            esconsAssignats.forEach(item => {
+                if (recompteEscons[item.partit] !== undefined) {
+                    recompteEscons[item.partit]++;
+                }
+            });
+
+            // Renderitzar resultats
+            let html = `<p class="text-muted">Vots vàlids totals: <strong>${totalVotsValids}</strong> | Barrera del 3% (mínim per entrar): <strong>${Math.round(barrera)} vots</strong></p>`;
+            html += `<table class="table table-striped"><thead><tr><th>Partit</th><th>Vots</th><th>Escons Obtinguts</th></tr></thead><tbody>`;
+            
+            partits.forEach(p => {
+                let escons = recompteEscons[p.nom] || 0;
+                let exclòs = p.vots < barrera ? " <span class='badge bg-warning text-dark'>No arriba al 3%</span>" : "";
+                html += `<tr><td>${p.nom}${exclòs}</td><td>${p.vots}</td><td><strong>${escons}</strong></td></tr>`;
+            });
+            
+            html += `</tbody></table>`;
+            document.getElementById("resultatsContainer").innerHTML = html;
+        }
+
+        // Càrrega inicial
+        window.onload = calcular;
+    </script>
+</body>
+</html>
